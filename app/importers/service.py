@@ -440,7 +440,7 @@ def _marche_mancanti(source: SourceTable, mappa: dict[str, int]) -> set[str]:
     codici_ordinati = sorted(codici)
     for i in range(0, len(codici_ordinati), 400):
         blocco = codici_ordinati[i : i + 400]
-        segnaposto = ",".join("?" * len(blocco))
+        segnaposto = ",".join(["%s"] * len(blocco))
         for riga in db.query_all(
             f"SELECT DISTINCT codice FROM marche WHERE codice IN ({segnaposto})", blocco
         ):
@@ -522,7 +522,7 @@ def _codici_esistenti(tabella: str, chiavi: Sequence[tuple[str, str]]) -> set[tu
     presenti: set[tuple[str, str]] = set()
     for i in range(0, len(codici), 400):
         blocco = codici[i : i + 400]
-        segnaposto = ",".join("?" * len(blocco))
+        segnaposto = ",".join(["%s"] * len(blocco))
         for riga in db.query_all(
             f"SELECT codice, azienda FROM {tabella} WHERE codice IN ({segnaposto})", blocco
         ):
@@ -537,7 +537,7 @@ def _listini_esistenti(chiavi: Sequence[tuple[str, str, str]]) -> set[tuple[str,
     presenti: set[tuple[str, str, str]] = set()
     for i in range(0, len(codici), 400):
         blocco = codici[i : i + 400]
-        segnaposto = ",".join("?" * len(blocco))
+        segnaposto = ",".join(["%s"] * len(blocco))
         for riga in db.query_all(
             f"""SELECT codice_articolo, azienda, nome_listino FROM listini
                 WHERE codice_articolo IN ({segnaposto})""",
@@ -618,28 +618,28 @@ def _commit_marche(
         codice = record_["codice"]
         azienda = record_["_azienda"]
         esistente = db.query_one(
-            "SELECT id FROM marche WHERE codice = ? AND azienda = ?", (codice, azienda)
+            "SELECT id FROM marche WHERE codice = %s AND azienda = %s", (codice, azienda)
         )
         if esistente:
             if strategia == STRATEGIA_SOLO_INSERIMENTO:
                 continue
             if strategia == STRATEGIA_SOLO_CAMPI_VUOTI:
                 db.execute(
-                    """UPDATE marche SET descrizione = CASE WHEN TRIM(descrizione) = '' THEN ?
+                    """UPDATE marche SET descrizione = CASE WHEN TRIM(descrizione) = '' THEN %s
                             ELSE descrizione END,
-                              updated_at = ? WHERE id = ?""",
+                              updated_at = %s WHERE id = %s""",
                     (record_["descrizione"], _ora(), esistente["id"]),
                 )
             else:
                 db.execute(
-                    """UPDATE marche SET descrizione = ?, updated_at = ? WHERE id = ?""",
+                    """UPDATE marche SET descrizione = %s, updated_at = %s WHERE id = %s""",
                     (record_["descrizione"], _ora(), esistente["id"]),
                 )
             aggiornati += 1
         else:
             db.execute(
                 """INSERT INTO marche (codice, descrizione, azienda, created_at, updated_at)
-                   VALUES (?, ?, ?, ?, ?)""",
+                   VALUES (%s, %s, %s, %s, %s)""",
                 (codice, record_["descrizione"], azienda, _ora(), _ora()),
             )
             inseriti += 1
@@ -664,7 +664,7 @@ def _commit_articoli(
         codice_marca = record_.get("codice_marca") or ""
 
         esistente = db.query_one(
-            "SELECT * FROM articoli WHERE codice = ? AND azienda = ?", (codice, azienda)
+            "SELECT * FROM articoli WHERE codice = %s AND azienda = %s", (codice, azienda)
         )
         if esistente:
             if strategia == STRATEGIA_SOLO_INSERIMENTO:
@@ -674,15 +674,15 @@ def _commit_articoli(
                 # Aggiorna solo i campi attualmente vuoti nel DB.
                 db.execute(
                     """UPDATE articoli SET
-                         descrizione  = CASE WHEN TRIM(descrizione)  = '' THEN ? ELSE descrizione END,
-                         unita_misura = CASE WHEN TRIM(unita_misura) = '' THEN ? ELSE unita_misura END,
-                         barcode      = CASE WHEN TRIM(barcode)      = '' THEN ? ELSE barcode END,
-                         codice_marca = CASE WHEN TRIM(codice_marca) = '' THEN ? ELSE codice_marca END,
-                         campi_extra  = ?,
-                         campi_personalizzati = ?,
-                         search_blob  = ?,
-                         updated_at   = ?
-                       WHERE id = ?""",
+                         descrizione  = CASE WHEN TRIM(descrizione)  = '' THEN %s ELSE descrizione END,
+                         unita_misura = CASE WHEN TRIM(unita_misura) = '' THEN %s ELSE unita_misura END,
+                         barcode      = CASE WHEN TRIM(barcode)      = '' THEN %s ELSE barcode END,
+                         codice_marca = CASE WHEN TRIM(codice_marca) = '' THEN %s ELSE codice_marca END,
+                         campi_extra  = %s,
+                         campi_personalizzati = %s,
+                         search_blob  = %s,
+                         updated_at   = %s
+                       WHERE id = %s""",
                     (
                         descrizione,
                         unita,
@@ -700,9 +700,9 @@ def _commit_articoli(
             else:
                 db.execute(
                     """UPDATE articoli SET
-                         descrizione = ?, unita_misura = ?, barcode = ?, codice_marca = ?,
-                         campi_extra = ?, campi_personalizzati = ?, search_blob = ?, updated_at = ?
-                       WHERE id = ?""",
+                         descrizione = %s, unita_misura = %s, barcode = %s, codice_marca = %s,
+                         campi_extra = %s, campi_personalizzati = %s, search_blob = %s, updated_at = %s
+                       WHERE id = %s""",
                     (
                         descrizione,
                         unita,
@@ -721,7 +721,7 @@ def _commit_articoli(
                 """INSERT INTO articoli
                      (codice, descrizione, unita_misura, barcode, azienda, codice_marca,
                       campi_extra, campi_personalizzati, search_blob, created_at, updated_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
                 (
                     codice,
                     descrizione,
@@ -758,7 +758,7 @@ def _commit_listini(
 
         esistente = db.query_one(
             """SELECT id FROM listini
-                WHERE codice_articolo = ? AND azienda = ? AND nome_listino = ?""",
+                WHERE codice_articolo = %s AND azienda = %s AND nome_listino = %s""",
             (codice, azienda, nome_listino),
         )
         if esistente:
@@ -768,16 +768,16 @@ def _commit_listini(
             if strategia == STRATEGIA_SOLO_CAMPI_VUOTI:
                 db.execute(
                     """UPDATE listini SET
-                         prezzo = CASE WHEN prezzo IS NULL THEN ? ELSE prezzo END,
-                         prezzo_iva = CASE WHEN prezzo_iva IS NULL THEN ? ELSE prezzo_iva END,
-                         data_validita = CASE WHEN data_validita IS NULL THEN ? ELSE data_validita END,
-                         campi_extra = ?, updated_at = ? WHERE id = ?""",
+                         prezzo = CASE WHEN prezzo IS NULL THEN %s ELSE prezzo END,
+                         prezzo_iva = CASE WHEN prezzo_iva IS NULL THEN %s ELSE prezzo_iva END,
+                         data_validita = CASE WHEN data_validita IS NULL THEN %s ELSE data_validita END,
+                         campi_extra = %s, updated_at = %s WHERE id = %s""",
                     (prezzo, prezzo_iva, data_validita, campi_extra, _ora(), esistente["id"]),
                 )
             else:
                 db.execute(
-                    """UPDATE listini SET prezzo = ?, prezzo_iva = ?, data_validita = ?,
-                         campi_extra = ?, updated_at = ? WHERE id = ?""",
+                    """UPDATE listini SET prezzo = %s, prezzo_iva = %s, data_validita = %s,
+                         campi_extra = %s, updated_at = %s WHERE id = %s""",
                     (prezzo, prezzo_iva, data_validita, campi_extra, _ora(), esistente["id"]),
                 )
             aggiornati += 1
@@ -786,7 +786,7 @@ def _commit_listini(
                 """INSERT INTO listini
                      (codice_articolo, azienda, nome_listino, prezzo, prezzo_iva,
                       data_validita, campi_extra, created_at, updated_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)""",
                 (
                     codice,
                     azienda,
@@ -809,11 +809,12 @@ def _registra_log(riepilogo: dict[str, Any], utente_id: int | None) -> int:
         "delimiter": riepilogo.get("delimiter"),
         "mappa": riepilogo.get("mappa"),
     }
-    cur = db.execute(
+    return db.insert(
         """INSERT INTO log_importazioni
              (file, tipo, formato, strategia, stato, righe_totali, inseriti,
               aggiornati, scartati, errori, dettaglio, utente_id)
-           VALUES (?, ?, ?, ?, 'completata', ?, ?, ?, ?, ?, ?, ?)""",
+           VALUES (%s, %s, %s, %s, 'completata', %s, %s, %s, %s, %s, %s, %s)
+           RETURNING id""",
         (
             riepilogo["file"],
             riepilogo["tipo"],
@@ -828,7 +829,6 @@ def _registra_log(riepilogo: dict[str, Any], utente_id: int | None) -> int:
             utente_id,
         ),
     )
-    return int(cur.lastrowid)
 
 
 # ---------------------------------------------------------------------------

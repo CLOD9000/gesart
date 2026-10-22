@@ -218,7 +218,7 @@ def test_modifica_articolo(client):
         },
         follow_redirects=False,
     )
-    aggiornato = db.query_one("SELECT * FROM articoli WHERE id = ?", (riga["id"],))
+    aggiornato = db.query_one("SELECT * FROM articoli WHERE id = %s", (riga["id"],))
     assert aggiornato["descrizione"] == "Descrizione modificata"
     assert aggiornato["unita_misura"] == "Mt"
 
@@ -235,7 +235,7 @@ def test_eliminazione_articolo(client):
         follow_redirects=False,
     )
     assert risposta.status_code == 303
-    assert db.query_one("SELECT * FROM articoli WHERE id = ?", (riga["id"],)) is None
+    assert db.query_one("SELECT * FROM articoli WHERE id = %s", (riga["id"],)) is None
 
 
 def test_codice_duplicato_rifiutato(client):
@@ -318,7 +318,7 @@ def test_campo_personalizzato_presente_in_tabella_e_filtri(client):
         """INSERT INTO campi_personalizzati (chiave, etichetta, tipo, opzioni, obbligatorio,
                                               ordine, attivo, created_at, updated_at)
            VALUES ('colore', 'Colore', 'lista', '["rosso","verde"]', 0, 1, 1,
-                   datetime('now'), datetime('now'))"""
+                   to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'), to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'))"""
     )
     carica_dati(client)
     risposta = client.get("/articoli")
@@ -332,7 +332,7 @@ def test_valore_campo_personalizzato_nel_crud(client):
         """INSERT INTO campi_personalizzati (chiave, etichetta, tipo, opzioni, obbligatorio,
                                               ordine, attivo, created_at, updated_at)
            VALUES ('colore', 'Colore', 'testo', '[]', 0, 1, 1,
-                   datetime('now'), datetime('now'))"""
+                   to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'), to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'))"""
     )
     risposta = client.get("/articoli/nuovo")
     token = re.search(r'name="csrf_token" value="([^"]+)"', risposta.text).group(1)
@@ -351,11 +351,11 @@ def test_rename_campo_non_perde_dati(client):
         """INSERT INTO campi_personalizzati (chiave, etichetta, tipo, opzioni, obbligatorio,
                                               ordine, attivo, created_at, updated_at)
            VALUES ('colore', 'Colore', 'testo', '[]', 0, 1, 1,
-                   datetime('now'), datetime('now'))"""
+                   to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'), to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'))"""
     )
     db.execute(
         """INSERT INTO articoli (codice, descrizione, campi_personalizzati, created_at, updated_at)
-           VALUES ('CP01', 'x', '{"colore":"rosso"}', datetime('now'), datetime('now'))"""
+           VALUES ('CP01', 'x', '{"colore":"rosso"}', to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'), to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'))"""
     )
     risposta = client.get("/admin/campi")
     token = re.search(r'name="csrf_token" value="([^"]+)"', risposta.text).group(1)
@@ -365,7 +365,7 @@ def test_rename_campo_non_perde_dati(client):
         data={"csrf_token": token, "etichetta": "Colore articolo", "tipo": "testo"},
         follow_redirects=False,
     )
-    riga = db.query_one("SELECT * FROM campi_personalizzati WHERE id = ?", (campo["id"],))
+    riga = db.query_one("SELECT * FROM campi_personalizzati WHERE id = %s", (campo["id"],))
     assert riga["etichetta"] == "Colore articolo"
     assert riga["chiave"] == "colore"
     articolo = db.query_one("SELECT * FROM articoli WHERE codice = 'CP01'")

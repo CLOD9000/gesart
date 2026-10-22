@@ -2,13 +2,16 @@
 
 Gestionale articoli self-hosted: importa, gestisce, filtra ed esporta un
 catalogo articoli originato da tre CSV distinti (`COSMOART`, `COSMOLIB`,
-`COSMOMAR`), con interfaccia web server-rendered e database SQLite in un
-singolo file.
+`COSMOMAR`), con interfaccia web server-rendered e database **PostgreSQL**
+in un container dedicato.
 
-- **Backend**: FastAPI + SQLite (WAL), nessun servizio esterno.
+- **Backend**: FastAPI + PostgreSQL 16 (container `db`, rete interna).
 - **Frontend**: Jinja2 + htmx (vendorizzato in locale, nessuna CDN: funziona
   anche senza connessione a internet).
 - **Dipendenze**: solo librerie Python, niente Node, niente build step.
+- **Accesso in sola lettura**: altri applicativi possono leggere il catalogo
+  tramite un ruolo dedicato e le viste `v_*` (vedi
+  [Accesso in sola lettura](#accesso-in-sola-lettura)).
 
 ---
 
@@ -21,10 +24,11 @@ singolo file.
 5. [Formato dei file di origine](#formato-dei-file-di-origine)
 6. [Importazione](#importazione)
 7. [Uso quotidiano](#uso-quotidiano)
-8. [Sviluppo locale](#sviluppo-locale)
-9. [Backup e ripristino](#backup-e-ripristino)
-10. [Struttura del progetto](#struttura-del-progetto)
-11. [API](#api)
+8. [Accesso in sola lettura](#accesso-in-sola-lettura)
+9. [Sviluppo locale](#sviluppo-locale)
+10. [Backup e ripristino](#backup-e-ripristino)
+11. [Struttura del progetto](#struttura-del-progetto)
+12. [API](#api)
 
 ---
 
@@ -70,10 +74,10 @@ Docker e Docker Compose v2. Nient'altro.
 ```bash
 # 1. configurazione (contiene le credenziali: NON versionare)
 cp stack.env.example stack.env
-$EDITOR stack.env          # cambia le password
+$EDITOR stack.env          # cambia le password (app, PostgreSQL, sola lettura)
 
-# 2. avvio
-docker compose up -d --build
+# 2. avvio (app + database)
+docker compose --env-file stack.env up -d --build
 
 # 3. verifica
 docker compose ps
@@ -82,31 +86,57 @@ curl -fsS http://localhost:9080/healthz     # -> {"stato":"ok"}
 
 L'applicazione e' raggiungibile su **http://localhost:9080**.
 
+> `--env-file stack.env` serve a docker compose per interpolare `GESART_PORT`
+> e per passare le variabili ai container. In alternativa si puo' copiare
+> `stack.env` in `.env` (ignorato da git).
+
+### Architettura
+
+```
+host :9080
+   |
+   v
+[gesart]  --rete interna gesart-net-->  [db: postgres:16-alpine]
+ FastAPI                                  volume gesart-db
+```
+
+- Il database **non pubblica porte**: e' raggiungibile solo dai container
+  collegati alla rete `gesart-net`.
+- L'applicazione applica lo schema all'avvio (`app/schema.sql`) ed e' l'unica
+  a scrivere.
+- Gli altri applicativi si collegano alla stessa rete Docker e usano il ruolo
+  di sola lettura (vedi [Accesso in sola lettura](#accesso-in-sola-lettura)).
+
 ### Comandi utili
 
 ```bash
-docker compose logs -f gesart      # log
-docker compose restart gesart      # riavvio
-docker compose down                # stop (il volume dei dati resta)
-docker compose down -v             # stop + CANCELLA i dati (pericoloso)
+docker compose --env-file stack.env logs -f gesart   # log applicazione
+docker compose --env-file stack.env logs -f db       # log PostgreSQL
+docker compose --env-file stack.env restart gesart   # riavvio
+docker compose --env-file stack.env down             # stop (i volumi restano)
+docker compose --env-file stack.env down -v          # stop + CANCELLA i dati
+docker compose --env-file stack.env exec db \
+  psql -U gesart -d gesart -c '\dt'                  # ispezione tabelle
 ```
 
 ### Volumi
 
-| Percorso nel container | Contenuto | Note |
+| Volume | Contenuto | Note |
 | --- | --- | --- |
-| `/data` | database SQLite + staging delle importazioni | volume `gesart-data`, **non perderlo** |
-| `/imports` | CSV/XLSX depositati da importare | bind mount `./imports` in sola lettura |
+| `gesart-db` | dati PostgreSQL (`/var/lib/postgresql/data`) | **il catalogo vive qui** |
+| `gesart-data` | staging delle importazioni (`/data`) | rigenerabile |
+| `./imports` | CSV/XLSX depositati da importare | bind mount in sola lettura |
 
 ### Aggiornamento
 
 ```bash
 git pull
-docker compose up -d --build
+docker compose --env-file stack.env up -d --build
 ```
 
 Lo schema del database viene aggiornato automaticamente all'avvio
-(`CREATE TABLE IF NOT EXISTS`): i dati esistenti non vengono toccati.
+(`CREATE TABLE IF NOT EXISTS` / `CREATE OR REPLACE VIEW`): i dati esistenti
+non vengono toccati.
 
 ---
 
@@ -119,11 +149,21 @@ I valori per Docker stanno in `stack.env` (vedi `stack.env.example`).
 | --- | --- | --- |
 | `GESART_PORT` | `9080` | porta esposta sull'host |
 | `GESART_HOST` | `0.0.0.0` | indirizzo di ascolto nel container |
-| `GESART_DATA_DIR` | `/data` | directory di database e staging |
-| `GESART_DB_PATH` | `<data_dir>/gesart.sqlite3` | percorso esplicito del DB |
+| `GESART_DATA_DIR` | `/data` | directory dello staging import |
 | `GESART_IMPORTS_DIR` | `/imports` | cartella dei file da importare |
 | `GESART_TEMPLATES_DIR` | `app/templates` | solo per sviluppo |
 | `GESART_STATIC_DIR` | `app/static` | solo per sviluppo |
+| `GESART_DATABASE_URL` | _(vuoto)_ | URL completo; se impostato vince sugli altri |
+| `GESART_DB_HOST` | `localhost` (`db` in compose) | host PostgreSQL |
+| `GESART_DB_PORT` | `5432` | porta PostgreSQL |
+| `GESART_DB_NAME` / `POSTGRES_DB` | `gesart` | nome del database |
+| `GESART_DB_USER` / `POSTGRES_USER` | `gesart` | utente applicativo (scrive) |
+| `GESART_DB_PASSWORD` / `POSTGRES_PASSWORD` | `gesart` | password dell'utente applicativo |
+| `GESART_DB_POOL_MIN` | `1` | connessioni minime nel pool |
+| `GESART_DB_POOL_MAX` | `10` | connessioni massime nel pool |
+| `GESART_DB_CONNECT_TIMEOUT` | `30` | timeout di connessione (secondi) |
+| `GESART_DB_READONLY_ROLE` | `gesart_lettura` | ruolo di sola lettura (vuoto = disabilitato) |
+| `GESART_DB_READONLY_PASSWORD` | _(vuoto)_ | password del ruolo di sola lettura |
 | `GESART_ADMIN_USER` | `admin` | username dell'admin creato al primo avvio |
 | `GESART_ADMIN_PASSWORD` | `admin` | password dell'admin |
 | `GESART_ADMIN_NAME` | `Amministratore` | nome mostrato |
@@ -136,6 +176,10 @@ I valori per Docker stanno in `stack.env` (vedi `stack.env.example`).
 | `GESART_MAX_UPLOAD_MB` | `64` | dimensione massima di un file caricato |
 | `GESART_STAGING_TTL_HOURS` | `24` | scadenza delle importazioni in attesa |
 | `GESART_DEFAULT_AZIENDA` | _(vuoto)_ | azienda di default in importazione |
+
+> Le variabili `POSTGRES_*` sono quelle lette dall'immagine ufficiale
+> PostgreSQL e vengono usate dall'app come fallback: in `stack.env` basta
+> definirle una volta sola.
 
 > Le credenziali iniziali valgono **solo per il primo avvio a database
 > vuoto**. Cambiare `GESART_ADMIN_PASSWORD` dopo il primo avvio non modifica
@@ -290,9 +334,56 @@ risultato mostrato a schermo.
 
 ---
 
+## Accesso in sola lettura
+
+PostgreSQL non e' pubblicato sull'host. Per leggere il catalogo da un altro
+applicativo:
+
+1. collegare il container dell'applicativo alla rete `gesart-net` (la rete
+   creata da questo stack, nome `<progetto>_gesart-net`);
+2. usare l'utente `GESART_DB_READONLY_ROLE` (default `gesart_lettura`) e la
+   password `GESART_DB_READONLY_PASSWORD`.
+
+Il ruolo viene creato/aggiornato automaticamente all'avvio dell'app e puo'
+solo eseguire `SELECT` sulle viste esposte:
+
+| Vista | Contenuto |
+| --- | --- |
+| `v_articoli` | articoli con descrizione marca e campi JSON (`jsonb`) |
+| `v_articoli_listini` | articoli per listino (prezzo, validita') |
+| `v_marche` | anagrafica marche |
+| `v_listini` | listini/prezzi |
+
+Le tabelle interne (utenti, sessioni, log importazioni) **non** sono
+accessibili al ruolo di lettura.
+
+Esempio con un container sulla stessa rete:
+
+```bash
+docker run --rm --network gesart_gesart-net -e PGPASSWORD=... \
+  postgres:16-alpine \
+  psql -h db -U gesart_lettura -d gesart \
+       -c "SELECT codice, descrizione FROM v_articoli LIMIT 5"
+```
+
+Esempio di stringa di connessione per un altro servizio:
+
+```
+postgresql://gesart_lettura:<password>@db:5432/gesart
+```
+
+> Il nome host `db` funziona solo per i container collegati a `gesart-net`.
+> Per un database esterno impostare `GESART_DATABASE_URL` e allineare i
+> permessi manualmente.
+
+---
+
 ## Sviluppo locale
 
 ```bash
+# PostgreSQL locale (solo sviluppo: pubblica 5432 su 127.0.0.1)
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d db
+
 scripts/dev.sh                 # http://localhost:9080 con reload (crea .venv se manca)
 scripts/dev.sh 8080            # porta diversa
 ```
@@ -303,17 +394,28 @@ In alternativa, a mano:
 python3 -m venv .venv
 .venv/bin/pip install -r requirements-dev.txt
 
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d db
+
 GESART_DATA_DIR=./data GESART_IMPORTS_DIR=./imports \
+GESART_DB_HOST=localhost GESART_DB_USER=gesart GESART_DB_PASSWORD=<password> \
   .venv/bin/python -m uvicorn app.web.main:app --reload --port 9080
 ```
 
 ### Test
 
 ```bash
-scripts/test.sh                # oppure: .venv/bin/python -m pytest tests/ -q
+# in locale: serve PostgreSQL raggiungibile (vedi sopra)
+GESART_TEST_DATABASE_URL=postgresql://gesart:<password>@localhost:5432/gesart_test \
+  scripts/test.sh
+
+# completamente dentro Docker (usa il database del compose)
+docker compose --env-file stack.env --profile test run --rm test
 ```
 
-I test usano un database temporaneo e non toccano `data/`.
+I test usano un database dedicato (`gesart_test`, creato automaticamente se
+manca) e svuotano le tabelle a ogni test: non toccano il database
+applicativo. Se PostgreSQL non e' raggiungibile i test che lo richiedono
+vengono saltati, mentre `tests/test_parsing.py` gira comunque.
 
 | File | Copertura |
 | --- | --- |
@@ -327,30 +429,34 @@ I test usano un database temporaneo e non toccano `data/`.
 
 ## Backup e ripristino
 
-Il database e' un unico file: `gesart.sqlite3` dentro il volume `/data`.
+Il catalogo vive nel volume `gesart-db`. Il backup consistente si fa con
+`pg_dump`:
 
 ```bash
-# backup (container in esecuzione)
-docker compose exec gesart \
-  python -c "import sqlite3; s=sqlite3.connect('/data/gesart.sqlite3'); d=sqlite3.connect('/data/backup.sqlite3'); s.backup(d)"
-
-# copia fuori dal container
-docker cp gesart:/data/gesart.sqlite3 ./backup-$(date +%F).sqlite3
+# dump compresso fuori dal container
+docker compose --env-file stack.env exec -T db \
+  pg_dump -U gesart -d gesart -Fc > backup-$(date +%F).dump
 ```
 
-Per il ripristino: spegnere il container, sostituire il file nel volume,
-riavviare.
+Ripristino (con stack fermo):
 
 ```bash
-docker compose down
-docker run --rm -v gesart-data:/data -v "$PWD":/backup alpine \
-  sh -c "cp /backup/backup-2026-01-31.sqlite3 /data/gesart.sqlite3 && rm -f /data/gesart.sqlite3-wal /data/gesart.sqlite3-shm"
-docker compose up -d
+docker compose --env-file stack.env down
+docker compose --env-file stack.env up -d db
+docker compose --env-file stack.env exec -T db \
+  pg_restore -U gesart -d gesart --clean --if-exists < backup-2026-01-31.dump
+docker compose --env-file stack.env up -d
 ```
 
-> Copiare il file a runtime senza fermare l'app puo' produrre un backup
-> incoerente: usare sempre `sqlite3.backup()` (come sopra) o fermare prima
-> il container.
+In alternativa, un dump SQL leggibile:
+
+```bash
+docker compose --env-file stack.env exec -T db \
+  pg_dump -U gesart -d gesart --no-owner > backup-$(date +%F).sql
+```
+
+> Non copiare i file del volume `gesart-db` a container acceso: usare
+> `pg_dump` (oppure fermare il database prima della copia).
 
 ---
 
@@ -359,8 +465,8 @@ docker compose up -d
 ```
 app/
   config.py           impostazioni da variabili d'ambiente
-  db.py               connessione SQLite, transazioni, migrazioni
-  schema.sql          schema del database
+  db.py               pool PostgreSQL, transazioni, init schema
+  schema.sql          schema PostgreSQL + viste di sola lettura
   security.py         password, sessioni, CSRF, normalizzazione ricerca
   query.py            motore dei filtri, ordinamento, paginazione
   exporters.py        export CSV (semplice, COSMO, campi personalizzati)
@@ -378,6 +484,8 @@ tests/                test automatici
 examples/            CSV di esempio
 imports/             cartella montata in /imports
 scripts/             dev.sh (server locale), test.sh (suite di test)
+docker-compose.yml      app + PostgreSQL (rete interna)
+docker-compose.dev.yml  override per lo sviluppo (5432 su 127.0.0.1)
 ```
 
 ---

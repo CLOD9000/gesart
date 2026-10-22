@@ -78,7 +78,7 @@ def _carica_log(limite: int = 50) -> list[dict[str, Any]]:
     righe = db.query_all(
         """SELECT id, file, tipo, formato, strategia, stato, timestamp, righe_totali,
                   inseriti, aggiornati, scartati
-             FROM log_importazioni ORDER BY id DESC LIMIT ?""",
+             FROM log_importazioni ORDER BY id DESC LIMIT %s""",
         (limite,),
     )
     return [dict(r) for r in righe]
@@ -283,7 +283,7 @@ async def log_import(request: Request, session: dict = Depends(require_admin)):
 
 @router.get("/log/{import_id}/errori.csv")
 async def errori_csv(request: Request, import_id: int, session: dict = Depends(require_admin)):
-    riga = db.query_one("SELECT errori FROM log_importazioni WHERE id = ?", (import_id,))
+    riga = db.query_one("SELECT errori FROM log_importazioni WHERE id = %s", (import_id,))
     errori = json.loads(riga["errori"]) if riga and riga["errori"] else []
     contenuto = service.report_errori_csv(errori)
     return Response(

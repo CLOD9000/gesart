@@ -1,9 +1,33 @@
 services:
+  db:
+    image: postgres:16-alpine
+    container_name: gesart-db
+    restart: unless-stopped
+    env_file:
+      - stack.env
+    environment:
+      PGDATA: "/var/lib/postgresql/data/pgdata"
+    volumes:
+      - gesart-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", 'pg_isready -h 127.0.0.1 -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - gesart-net
+    # Nessuna porta pubblicata: il database e' raggiungibile solo dalla rete
+    # interna di Docker. Gli altri applicativi si collegano alla stessa rete.
+
   gesart:
     build: .
     image: gesart:latest
     container_name: gesart
     restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
     env_file:
       - stack.env
     environment:
@@ -11,10 +35,12 @@ services:
       GESART_PORT: "9080"
       GESART_DATA_DIR: "/data"
       GESART_IMPORTS_DIR: "/imports"
+      GESART_DB_HOST: "db"
+      GESART_DB_PORT: "5432"
     ports:
       - "${GESART_PORT:-9080}:9080"
     volumes:
-      # Database SQLite e file di staging: NON perderli.
+      # Solo staging degli import: il database vive nel volume gesart-db.
       - gesart-data:/data
       # Cartella con i CSV/XLSX da importare (opzionale).
       - ./imports:/imports:ro
@@ -24,6 +50,37 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
+    networks:
+      - gesart-net
+
+  # Suite di test (profilo "test"): gira nella rete interna e usa il DB `db`.
+  #   docker compose --env-file stack.env --profile test run --rm test
+  test:
+    build:
+      context: .
+      target: test
+    image: gesart:test
+    profiles: ["test"]
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - stack.env
+    environment:
+      GESART_DB_HOST: "db"
+      GESART_DB_PORT: "5432"
+      GESART_DB_READONLY_ROLE: ""
+      GESART_DATA_DIR: "/tmp/gesart-data"
+      GESART_IMPORTS_DIR: "/imports"
+    volumes:
+      - ./imports:/imports:ro
+    networks:
+      - gesart-net
 
 volumes:
   gesart-data:
+  gesart-db:
+
+networks:
+  gesart-net:
+    driver: bridge

@@ -122,7 +122,7 @@ def test_import_articoli_solo_campi_vuoti(db_pulito):
         """INSERT INTO articoli (codice, descrizione, unita_misura, barcode, azienda,
                                 codice_marca, created_at, updated_at)
            VALUES ('8194700', 'DESCRIZIONE ORIGINALE', 'Mt', '111', 'EUCOMO', '74',
-                   datetime('now'), datetime('now'))"""
+                   to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'), to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'))"""
     )
     service.commit_import(leggi("COSMOMAR.csv"), "COSMOMAR.csv", "marche")
     service.commit_import(
@@ -139,7 +139,7 @@ def test_import_articoli_upsert_sovrascrive(db_pulito):
         """INSERT INTO articoli (codice, descrizione, unita_misura, barcode, azienda,
                                 codice_marca, created_at, updated_at)
            VALUES ('8194700', 'VECCHIA', 'Mt', '111', 'EUCOMO', '74',
-                   datetime('now'), datetime('now'))"""
+                   to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'), to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'))"""
     )
     service.commit_import(leggi("COSMOMAR.csv"), "COSMOMAR.csv", "marche")
     service.commit_import(
@@ -226,7 +226,7 @@ def test_import_listini_supporta_piu_listini(db_pulito):
     db.execute(
         """INSERT INTO listini (codice_articolo, azienda, nome_listino, prezzo,
                                created_at, updated_at)
-           VALUES ('8194700', 'EUCOMO', 'RIVENDITA', 19.9, datetime('now'), datetime('now'))"""
+           VALUES ('8194700', 'EUCOMO', 'RIVENDITA', 19.9, to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'), to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'))"""
     )
     service.commit_import(leggi("COSMOLIB.csv"), "COSMOLIB.csv", "listini")
     righe = db.query_all("SELECT * FROM listini WHERE codice_articolo = '8194700'")

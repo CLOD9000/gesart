@@ -156,7 +156,7 @@ def esporta_campi_personalizzati(
 def esporta_errori_log(importazione_id: int) -> str:
     """Esporta in CSV gli errori di una specifica importazione."""
     riga = db.query_one(
-        "SELECT errori FROM log_importazioni WHERE id = ?", (importazione_id,)
+        "SELECT errori FROM log_importazioni WHERE id = %s", (importazione_id,)
     )
     errori = json.loads(riga["errori"]) if riga and riga["errori"] else []
     from .importers.service import report_errori_csv

@@ -77,18 +77,18 @@ def build_search_blob(*parts: str) -> str:
 # Utenti
 # ---------------------------------------------------------------------------
 def get_utente_by_username(username: str) -> dict[str, Any] | None:
-    row = db.query_one("SELECT * FROM utenti WHERE username = ?", (username,))
+    row = db.query_one("SELECT * FROM utenti WHERE username = %s", (username,))
     return dict(row) if row else None
 
 
 def create_utente(username: str, password: str, ruolo: str, nome: str = "") -> int:
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
-    cur = db.execute(
+    return db.insert(
         """INSERT INTO utenti (username, password_hash, nome, ruolo, attivo, created_at, updated_at)
-           VALUES (?, ?, ?, ?, 1, ?, ?)""",
+           VALUES (%s, %s, %s, %s, 1, %s, %s)
+           RETURNING id""",
         (username, hash_password(password), nome or username, ruolo, now, now),
     )
-    return int(cur.lastrowid)
 
 
 def ensure_utenti_iniziali() -> None:
@@ -127,7 +127,7 @@ def create_session(utente_id: int) -> tuple[str, str]:
     expires = _now() + timedelta(hours=settings.session_ttl_hours)
     db.execute(
         """INSERT INTO sessioni (token, utente_id, csrf_token, created_at, expires_at)
-           VALUES (?, ?, ?, ?, ?)""",
+           VALUES (%s, %s, %s, %s, %s)""",
         (
             token,
             utente_id,
@@ -147,7 +147,7 @@ def load_session(token: str | None) -> dict[str, Any] | None:
         """SELECT s.token, s.csrf_token, s.expires_at, u.id AS utente_id, u.username,
                   u.nome, u.ruolo, u.attivo
              FROM sessioni s JOIN utenti u ON u.id = s.utente_id
-            WHERE s.token = ?""",
+            WHERE s.token = %s""",
         (token,),
     )
     if row is None:
@@ -167,11 +167,11 @@ def load_session(token: str | None) -> dict[str, Any] | None:
 
 
 def delete_session(token: str) -> None:
-    db.execute("DELETE FROM sessioni WHERE token = ?", (token,))
+    db.execute("DELETE FROM sessioni WHERE token = %s", (token,))
 
 
 def purge_expired_sessions() -> None:
-    db.execute("DELETE FROM sessioni WHERE expires_at < ?", (_now().strftime("%Y-%m-%d %H:%M:%S"),))
+    db.execute("DELETE FROM sessioni WHERE expires_at < %s", (_now().strftime("%Y-%m-%d %H:%M:%S"),))
 
 
 # ---------------------------------------------------------------------------

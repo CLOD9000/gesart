@@ -27,8 +27,9 @@ async def lifespan(app: FastAPI):
     db.init_db()
     ensure_utenti_iniziali()
     purge_expired_sessions()
-    logger.info("gesart pronto - database: %s", settings.resolved_db_path())
+    logger.info("gesart pronto - database: %s", settings.database_descrizione())
     yield
+    db.close_pool()
 
 
 def create_app() -> FastAPI:

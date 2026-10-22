@@ -5,7 +5,7 @@
 # Build:  docker build -t gesart .
 # Run:    docker run -p 9080:9080 -v gesart-data:/data gesart
 
-FROM python:3.12-slim
+FROM python:3.12-slim AS runtime
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
@@ -43,3 +43,20 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
     CMD curl -fsS "http://127.0.0.1:${GESART_PORT}/healthz" || exit 1
 
 CMD ["python", "-m", "uvicorn", "app.web.main:app", "--host", "0.0.0.0", "--port", "9080", "--proxy-headers"]
+
+# ---------------------------------------------------------------------------
+# Target per la suite di test (non fa parte dell'immagine di produzione).
+#   docker compose --profile test run --rm test
+# ---------------------------------------------------------------------------
+FROM runtime AS test
+
+USER root
+COPY requirements-dev.txt ./
+RUN pip install --no-cache-dir -r requirements-dev.txt
+
+COPY tests ./tests
+COPY examples ./examples
+RUN chown -R gesart:gesart /srv/gesart
+
+USER gesart
+CMD ["python", "-m", "pytest", "tests", "-q"]

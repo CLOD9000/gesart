@@ -2,8 +2,9 @@
 from __future__ import annotations
 
 import json
-import sqlite3
 from typing import Any
+
+import psycopg
 
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import RedirectResponse, Response
@@ -113,7 +114,7 @@ def _carica_viste(session: dict) -> list[dict[str, Any]]:
 
     righe = _db.query_all(
         """SELECT * FROM viste
-            WHERE (ambito = 'condivisa') OR (utente_id = ?)
+            WHERE (ambito = 'condivisa') OR (utente_id = %s)
             ORDER BY nome""",
         (session["utente_id"],),
     )
@@ -260,7 +261,7 @@ async def modifica_articolo(
 ):
     from ..importers.service import carica_campi_personalizzati
 
-    riga = db.query_one("SELECT * FROM articoli WHERE id = ?", (articolo_id,))
+    riga = db.query_one("SELECT * FROM articoli WHERE id = %s", (articolo_id,))
     if riga is None:
         return RedirectResponse(url="/articoli", status_code=303)
     articolo = dict(riga)
@@ -271,7 +272,7 @@ async def modifica_articolo(
             articolo[chiave] = {}
     listino = db.query_one(
         """SELECT nome_listino, prezzo, prezzo_iva, data_validita FROM listini
-            WHERE codice_articolo = ? AND azienda = ?
+            WHERE codice_articolo = %s AND azienda = %s
             ORDER BY nome_listino LIMIT 1""",
         (articolo["codice"], articolo["azienda"] or ""),
     )
@@ -338,10 +339,10 @@ async def salva_articolo(request: Request, session: dict = Depends(require_user)
     if articolo_id:
         try:
             db.execute(
-                """UPDATE articoli SET codice = ?, descrizione = ?, unita_misura = ?, barcode = ?,
-                       azienda = ?, codice_marca = ?, campi_extra = ?, campi_personalizzati = ?,
-                       search_blob = ?, updated_at = datetime('now')
-                   WHERE id = ?""",
+                """UPDATE articoli SET codice = %s, descrizione = %s, unita_misura = %s, barcode = %s,
+                       azienda = %s, codice_marca = %s, campi_extra = %s, campi_personalizzati = %s,
+                       search_blob = %s, updated_at = to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
+                   WHERE id = %s""",
                 payload
                 + (
                     build_search_blob(
@@ -353,17 +354,20 @@ async def salva_articolo(request: Request, session: dict = Depends(require_user)
                     int(articolo_id),
                 ),
             )
-        except sqlite3.IntegrityError:
+        except psycopg.errors.UniqueViolation:
             return _errore_univocita(
                 request, dati, codice, azienda, campi_pers
             )
     else:
         try:
-            cur = db.execute(
+            articolo_id = db.insert(
                 """INSERT INTO articoli
                      (codice, descrizione, unita_misura, barcode, azienda, codice_marca,
                       campi_extra, campi_personalizzati, search_blob, created_at, updated_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s,
+                           to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'),
+                           to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'))
+                   RETURNING id""",
                 payload
                 + (
                     build_search_blob(
@@ -374,11 +378,10 @@ async def salva_articolo(request: Request, session: dict = Depends(require_user)
                     ),
                 ),
             )
-        except sqlite3.IntegrityError:
+        except psycopg.errors.UniqueViolation:
             return _errore_univocita(
                 request, dati, codice, azienda, campi_pers
             )
-        articolo_id = cur.lastrowid
 
     _salva_prezzo(str(dati.get("codice") or codice), azienda, dati)
     return RedirectResponse(url=f"/articoli/{articolo_id}", status_code=303)
@@ -418,19 +421,19 @@ def _salva_prezzo(codice: str, azienda: str, dati) -> None:
     except ValueError:
         return
     esistente = db.query_one(
-        """SELECT id FROM listini WHERE codice_articolo = ? AND azienda = ? AND nome_listino = ?""",
+        """SELECT id FROM listini WHERE codice_articolo = %s AND azienda = %s AND nome_listino = %s""",
         (codice, azienda, nome_listino),
     )
     if esistente:
         db.execute(
-            "UPDATE listini SET prezzo = ?, updated_at = datetime('now') WHERE id = ?",
+            "UPDATE listini SET prezzo = %s, updated_at = to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS') WHERE id = %s",
             (prezzo, esistente["id"]),
         )
     else:
         db.execute(
             """INSERT INTO listini (codice_articolo, azienda, nome_listino, prezzo,
                                      created_at, updated_at)
-               VALUES (?, ?, ?, ?, datetime('now'), datetime('now'))""",
+               VALUES (%s, %s, %s, %s, to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'), to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'))""",
             (codice, azienda, nome_listino, prezzo),
         )
 
@@ -463,6 +466,6 @@ async def elimina_articolo(
     request: Request, articolo_id: int, session: dict = Depends(require_user)
 ):
     await check_csrf(request)
-    db.execute("DELETE FROM listini WHERE codice_articolo = (SELECT codice FROM articoli WHERE id = ?)", (articolo_id,))
-    db.execute("DELETE FROM articoli WHERE id = ?", (articolo_id,))
+    db.execute("DELETE FROM listini WHERE codice_articolo = (SELECT codice FROM articoli WHERE id = %s)", (articolo_id,))
+    db.execute("DELETE FROM articoli WHERE id = %s", (articolo_id,))
     return RedirectResponse(url="/articoli", status_code=303)

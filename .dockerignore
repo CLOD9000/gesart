@@ -10,8 +10,6 @@ __pycache__
 .ruff_cache
 .coverage
 htmlcov
-tests
-examples
 scripts
 docs
 *.md

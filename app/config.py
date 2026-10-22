@@ -8,6 +8,7 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
+from urllib.parse import quote
 
 
 def _env(name: str, default: str = "") -> str:
@@ -40,12 +41,34 @@ def _env_int(name: str, default: int) -> int:
 
 @dataclass(frozen=True)
 class Settings:
-    # Percorsi
+    # Percorsi locali (staging degli import)
     data_dir: Path = field(default_factory=lambda: Path(_env("GESART_DATA_DIR", "/data")))
-    db_path: Path | None = field(default_factory=lambda: _env_path("GESART_DB_PATH"))
     imports_dir: Path = field(default_factory=lambda: Path(_env("GESART_IMPORTS_DIR", "/imports")))
     templates_dir: Path | None = field(default_factory=lambda: _env_path("GESART_TEMPLATES_DIR"))
     static_dir: Path | None = field(default_factory=lambda: _env_path("GESART_STATIC_DIR"))
+
+    # Database PostgreSQL
+    database_url: str = field(default_factory=lambda: _env("GESART_DATABASE_URL"))
+    db_host: str = field(default_factory=lambda: _env("GESART_DB_HOST", "localhost"))
+    db_port: int = field(default_factory=lambda: _env_int("GESART_DB_PORT", 5432))
+    # Fallback sulle variabili standard dell'immagine ufficiale postgres.
+    db_name: str = field(
+        default_factory=lambda: _env("GESART_DB_NAME") or _env("POSTGRES_DB", "gesart")
+    )
+    db_user: str = field(
+        default_factory=lambda: _env("GESART_DB_USER") or _env("POSTGRES_USER", "gesart")
+    )
+    db_password: str = field(
+        default_factory=lambda: _env("GESART_DB_PASSWORD")
+        or _env("POSTGRES_PASSWORD", "gesart")
+    )
+    db_pool_min: int = field(default_factory=lambda: _env_int("GESART_DB_POOL_MIN", 1))
+    db_pool_max: int = field(default_factory=lambda: _env_int("GESART_DB_POOL_MAX", 10))
+    db_connect_timeout: int = field(default_factory=lambda: _env_int("GESART_DB_CONNECT_TIMEOUT", 30))
+
+    # Utente PostgreSQL di sola lettura per gli applicativi esterni
+    db_readonly_role: str = field(default_factory=lambda: _env("GESART_DB_READONLY_ROLE", "gesart_lettura"))
+    db_readonly_password: str = field(default_factory=lambda: _env("GESART_DB_READONLY_PASSWORD", ""))
 
     # Server
     host: str = field(default_factory=lambda: _env("GESART_HOST", "0.0.0.0"))
@@ -70,10 +93,20 @@ class Settings:
     staging_ttl_hours: int = field(default_factory=lambda: _env_int("GESART_STAGING_TTL_HOURS", 24))
     default_azienda: str = field(default_factory=lambda: _env("GESART_DEFAULT_AZIENDA", ""))
 
-    def resolved_db_path(self) -> Path:
-        if self.db_path:
-            return self.db_path
-        return self.data_dir / "gesart.sqlite3"
+    def resolved_database_url(self) -> str:
+        """URL di connessione: `GESART_DATABASE_URL` oppure composto dai singoli campi."""
+        if self.database_url:
+            return self.database_url
+        user = quote(self.db_user, safe="")
+        password = quote(self.db_password, safe="")
+        return (
+            f"postgresql://{user}:{password}"
+            f"@{self.db_host}:{self.db_port}/{quote(self.db_name, safe='')}"
+        )
+
+    def database_descrizione(self) -> str:
+        """Descrizione della connessione senza password (per i log)."""
+        return f"{self.db_host}:{self.db_port}/{self.db_name} (utente {self.db_user})"
 
     def resolved_templates_dir(self) -> Path:
         if self.templates_dir:

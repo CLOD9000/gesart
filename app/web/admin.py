@@ -26,10 +26,10 @@ def _slug_univo(candidato: str, escludi_id: int | None = None) -> str:
     slug = _slug(candidato)
     i = 2
     while True:
-        query = "SELECT id FROM campi_personalizzati WHERE chiave = ?"
+        query = "SELECT id FROM campi_personalizzati WHERE chiave = %s"
         params: list[Any] = [slug]
         if escludi_id:
-            query += " AND id <> ?"
+            query += " AND id <> %s"
             params.append(escludi_id)
         if db.query_one(query, params) is None:
             return slug
@@ -64,7 +64,7 @@ async def crea_campo(request: Request, session: dict = Depends(require_admin)):
             """INSERT INTO campi_personalizzati
                  (chiave, etichetta, tipo, opzioni, obbligatorio, ordine, attivo,
                   created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, 1, datetime('now'), datetime('now'))""",
+               VALUES (%s, %s, %s, %s, %s, %s, 1, to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'), to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'))""",
             (
                 _slug_univo(etichetta),
                 etichetta,
@@ -90,15 +90,15 @@ async def aggiorna_campo(request: Request, campo_id: int, session: dict = Depend
     form = await request.form()
     etichetta = str(form.get("etichetta") or "").strip()
     tipo = str(form.get("tipo") or "testo")
-    riga = db.query_one("SELECT * FROM campi_personalizzati WHERE id = ?", (campo_id,))
+    riga = db.query_one("SELECT * FROM campi_personalizzati WHERE id = %s", (campo_id,))
     if riga is not None and etichetta and tipo in TIPI_CAMPO:
         # La chiave (slug) non viene cambiata: i dati gia' salvati restano
         # validi anche se l'etichetta viene rinominata.
         db.execute(
             """UPDATE campi_personalizzati
-                  SET etichetta = ?, tipo = ?, opzioni = ?, obbligatorio = ?, ordine = ?,
-                      attivo = ?, updated_at = datetime('now')
-                WHERE id = ?""",
+                  SET etichetta = %s, tipo = %s, opzioni = %s, obbligatorio = %s, ordine = %s,
+                      attivo = %s, updated_at = to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
+                WHERE id = %s""",
             (
                 etichetta,
                 tipo,
@@ -115,13 +115,14 @@ async def aggiorna_campo(request: Request, campo_id: int, session: dict = Depend
 @router.post("/campi/{campo_id}/elimina")
 async def elimina_campo(request: Request, campo_id: int, session: dict = Depends(require_admin)):
     await check_csrf(request)
-    riga = db.query_one("SELECT chiave FROM campi_personalizzati WHERE id = ?", (campo_id,))
+    riga = db.query_one("SELECT chiave FROM campi_personalizzati WHERE id = %s", (campo_id,))
     if riga is not None:
-        db.execute("DELETE FROM campi_personalizzati WHERE id = ?", (campo_id,))
+        db.execute("DELETE FROM campi_personalizzati WHERE id = %s", (campo_id,))
         # Rimuove il valore da tutti gli articoli, ma NON i campi_extra.
         db.execute(
-            "UPDATE articoli SET campi_personalizzati = json_remove(campi_personalizzati, ?)",
-            (f'$."{riga["chiave"]}"',),
+            "UPDATE articoli SET campi_personalizzati = "
+            "(COALESCE(NULLIF(campi_personalizzati, ''), '{}')::jsonb - %s)::text",
+            (riga["chiave"],),
         )
     return RedirectResponse(url="/admin/campi", status_code=303)
 
@@ -144,12 +145,12 @@ async def crea_utente(request: Request, session: dict = Depends(require_admin)):
     ruolo = str(form.get("ruolo") or "operatore")
     nome = str(form.get("nome") or "").strip()
     if username and password and ruolo in ("admin", "operatore"):
-        esistente = db.query_one("SELECT id FROM utenti WHERE username = ?", (username,))
+        esistente = db.query_one("SELECT id FROM utenti WHERE username = %s", (username,))
         if esistente is None:
             db.execute(
                 """INSERT INTO utenti (username, password_hash, nome, ruolo, attivo,
                                       created_at, updated_at)
-                   VALUES (?, ?, ?, ?, 1, datetime('now'), datetime('now'))""",
+                   VALUES (%s, %s, %s, %s, 1, to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'), to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'))""",
                 (username, hash_password(password), nome or username, ruolo),
             )
     return RedirectResponse(url="/admin/utenti", status_code=303)
@@ -164,7 +165,7 @@ async def cambia_password(
     password = str(form.get("password") or "")
     if password:
         db.execute(
-            "UPDATE utenti SET password_hash = ?, updated_at = datetime('now') WHERE id = ?",
+            "UPDATE utenti SET password_hash = %s, updated_at = to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS') WHERE id = %s",
             (hash_password(password), utente_id),
         )
     return RedirectResponse(url="/admin/utenti", status_code=303)
@@ -175,10 +176,10 @@ async def cambia_attivo(
     request: Request, utente_id: int, session: dict = Depends(require_admin)
 ):
     await check_csrf(request)
-    riga = db.query_one("SELECT attivo FROM utenti WHERE id = ?", (utente_id,))
+    riga = db.query_one("SELECT attivo FROM utenti WHERE id = %s", (utente_id,))
     if riga is not None:
         db.execute(
-            "UPDATE utenti SET attivo = ?, updated_at = datetime('now') WHERE id = ?",
+            "UPDATE utenti SET attivo = %s, updated_at = to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS') WHERE id = %s",
             (0 if riga["attivo"] else 1, utente_id),
         )
     return RedirectResponse(url="/admin/utenti", status_code=303)
