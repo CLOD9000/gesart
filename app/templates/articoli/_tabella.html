@@ -1,0 +1,81 @@
+{% set qs = 'flt=' ~ filtri_json|urlencode ~ '&ord=' ~ paginazione.ordinamento ~ '&dir=' ~ paginazione.direzione ~ ('&listino=' ~ paginazione.listino if paginazione.listino else '') %}
+<div class="tabella-wrap">
+  <table class="dati">
+    <thead>
+      <tr>
+        <th class="ordinabile" hx-get="/articoli/tabella?{{ qs }}&ord=codice&dir={{ 'desc' if paginazione.ordinamento == 'codice' and paginazione.direzione == 'asc' else 'asc' }}&pag={{ paginazione.pagina }}"
+            hx-target="#tabella" hx-swap="outerHTML" style="min-width:110px">Codice
+          {% if paginazione.ordinamento == 'codice' %}<span class="freccia">{{ '▼' if paginazione.direzione == 'desc' else '▲' }}</span>{% endif %}</th>
+        <th class="ordinabile" hx-get="/articoli/tabella?{{ qs }}&ord=descrizione&dir={{ 'desc' if paginazione.ordinamento == 'descrizione' and paginazione.direzione == 'asc' else 'asc' }}&pag={{ paginazione.pagina }}"
+            hx-target="#tabella" hx-swap="outerHTML" style="min-width:220px">Descrizione
+          {% if paginazione.ordinamento == 'descrizione' %}<span class="freccia">{{ '▼' if paginazione.direzione == 'desc' else '▲' }}</span>{% endif %}</th>
+        <th>UM</th>
+        <th>Marca</th>
+        <th class="num ordinabile" hx-get="/articoli/tabella?{{ qs }}&ord=prezzo&dir={{ 'desc' if paginazione.ordinamento == 'prezzo' and paginazione.direzione == 'asc' else 'asc' }}&pag={{ paginazione.pagina }}"
+            hx-target="#tabella" hx-swap="outerHTML">Prezzo
+          {% if paginazione.ordinamento == 'prezzo' %}<span class="freccia">{{ '▼' if paginazione.direzione == 'desc' else '▲' }}</span>{% endif %}</th>
+        <th>Listino</th>
+        <th>Barcode</th>
+        {% for campo in campi_custom %}
+          <th>{{ campo.etichetta }}</th>
+        {% endfor %}
+        <th>Azioni</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for riga in risultato.righe %}
+      <tr>
+        <td><a href="/articoli/{{ riga.id }}">{{ riga.codice }}</a></td>
+        <td>{{ riga.descrizione }}</td>
+        <td>{{ riga.unita_misura }}</td>
+        <td>
+          {% if riga.codice_marca %}
+            <span class="badge">{{ riga.codice_marca }}</span>
+            <span style="color:var(--muted)">{{ riga.marca_descrizione or '' }}</span>
+          {% endif %}
+        </td>
+        <td class="num">
+          {% if riga.prezzo is not none %}{{ '%.2f'|format(riga.prezzo) }}{% else %}<span style="color:var(--muted)">-</span>{% endif %}
+        </td>
+        <td>{{ riga.nome_listino or '' }}</td>
+        <td style="font-variant-numeric:tabular-nums">{{ riga.barcode }}</td>
+        {% for campo in campi_custom %}
+          <td>{{ riga.campi_personalizzati.get(campo.chiave, '') }}</td>
+        {% endfor %}
+        <td>
+          <a class="btn" style="padding:2px 8px" href="/articoli/{{ riga.id }}">Apri</a>
+        </td>
+      </tr>
+      {% endfor %}
+      {% if not risultato.righe %}
+        <tr><td colspan="{{ 8 + campi_custom|length }}" style="text-align:center;padding:30px;color:var(--muted)">
+          Nessun articolo corrisponde ai filtri.
+        </td></tr>
+      {% endif %}
+    </tbody>
+  </table>
+</div>
+
+<div class="paginazione">
+  {% set base = '/articoli/tabella?' ~ qs %}
+  {% if risultato.pagine > 1 %}
+    {% set inizio = [1, risultato.pagina - 2]|max %}
+    {% set fine = [risultato.pagine, risultato.pagina + 2]|min %}
+    {% if inizio > 1 %}
+      <a href="#" hx-get="{{ base }}&pag=1" hx-target="#tabella" hx-swap="outerHTML">1</a>
+      <span>…</span>
+    {% endif %}
+    {% for p in range(inizio, fine + 1) %}
+      {% if p == risultato.pagina %}
+        <span class="attiva">{{ p }}</span>
+      {% else %}
+        <a href="#" hx-get="{{ base }}&pag={{ p }}" hx-target="#tabella" hx-swap="outerHTML">{{ p }}</a>
+      {% endif %}
+    {% endfor %}
+    {% if fine < risultato.pagine %}
+      <span>…</span>
+      <a href="#" hx-get="{{ base }}&pag={{ risultato.pagine }}" hx-target="#tabella" hx-swap="outerHTML">{{ risultato.pagine }}</a>
+    {% endif %}
+  {% endif %}
+  <span class="info">{{ risultato.inizio }}–{{ risultato.fine }} di {{ risultato.totale }}</span>
+</div>

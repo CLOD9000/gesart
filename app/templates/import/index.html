@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block titolo %}Importazione{% endblock %}
+{% block contenuto %}
+{% set modulo_import = true %}
+
+<h1>Importazione dati</h1>
+
+{% if errore %}<div class="msg errore">{{ errore }}</div>{% endif %}
+
+<div class="panel">
+  <h2>Carica un file CSV o XLSX</h2>
+  <p style="color:var(--muted);margin-top:-4px">
+    I tre file sono gestiti separatamente: anagrafica articoli, anagrafica marche e listini.
+    Il separatore (<code>;</code> o <code>,</code>) e la codifica (UTF-8 / Latin-1) vengono rilevati automaticamente.
+  </p>
+
+  <form method="post" action="/import/carica" enctype="multipart/form-data">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div class="griglia">
+      <div class="riga-form">
+        <label for="tipo">Tipo di dati</label>
+        <select id="tipo" name="tipo">
+          <option value="articoli">Anagrafica articoli (COSMOART.csv)</option>
+          <option value="marche">Anagrafica marche (COSMOMAR.csv)</option>
+          <option value="listini">Listini / prezzi (COSMOLIB.csv)</option>
+        </select>
+      </div>
+      <div class="riga-form">
+        <label for="strategia">Strategia di aggiornamento</label>
+        <select id="strategia" name="strategia">
+          <option value="upsert">Upsert (inserisci o aggiorna)</option>
+          <option value="solo_inserimento">Solo inserimento (ignora gli esistenti)</option>
+          <option value="solo_campi_vuoti">Aggiorna solo i campi vuoti</option>
+        </select>
+      </div>
+      <div class="riga-form">
+        <label for="file">File</label>
+        <input type="file" id="file" name="file" accept=".csv,.txt,.xlsx,.xlsm" required>
+      </div>
+    </div>
+    <button type="submit" class="primary">Analizza file</button>
+  </form>
+
+  <div class="msg info" style="margin-top:14px">
+    Per l'aggiornamento dei listini in formato <strong>XLSX</strong> e' possibile indicare in fase di
+    anteprima quali colonne usare per il match dei record.
+  </div>
+</div>
+
+{% if file_disponibili %}
+<div class="panel">
+  <h2>File disponibili in <code>{{ imports_dir }}</code></h2>
+  <p style="color:var(--muted);margin-top:-4px">
+    File depositati direttamente nella cartella montata nel container: si importano senza ricaricarli dal browser.
+  </p>
+  <form method="post" action="/import/carica-da-cartella">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <table class="tabella">
+      <thead>
+        <tr><th>File</th><th>Dimensione</th><th>Modificato</th><th>Tipo</th><th>Strategia</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for f in file_disponibili %}
+        <tr>
+          <td><strong>{{ f.nome }}</strong></td>
+          <td>{{ f.byte }}</td>
+          <td>{{ f.data }}</td>
+          <td>
+            <select name="tipo">
+              <option value="articoli">Articoli (COSMOART)</option>
+              <option value="marche">Marche (COSMOMAR)</option>
+              <option value="listini">Listini (COSMOLIB)</option>
+            </select>
+          </td>
+          <td>
+            <select name="strategia">
+              <option value="upsert">Upsert</option>
+              <option value="solo_inserimento">Solo inserimento</option>
+              <option value="solo_campi_vuoti">Solo campi vuoti</option>
+            </select>
+          </td>
+          <td>
+            <input type="hidden" name="nome" value="{{ f.nome }}">
+            <button type="submit" class="primary">Analizza</button>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </form>
+</div>
+{% endif %}
+
+<div class="panel">
+  <h2>Ultime importazioni</h2>
+  {% include "import/_log.html" %}
+</div>
+{% endblock %}

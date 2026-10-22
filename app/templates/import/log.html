@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block titolo %}Log importazioni{% endblock %}
+{% block contenuto %}
+{% set modulo_import = true %}
+
+<h1>Log importazioni</h1>
+
+<div class="panel">
+  {% include "import/_log.html" %}
+</div>
+{% endblock %}

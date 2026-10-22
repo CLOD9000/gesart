@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block titolo %}Errore{% endblock %}
+{% block contenuto %}
+<div class="panel">
+  <h1>{{ titolo }}</h1>
+  <p class="msg errore">{{ messaggio }}</p>
+  <a class="btn" href="/articoli">Torna agli articoli</a>
+</div>
+{% endblock %}

@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% import "articoli/_filtri.html" as f %}
+{% block titolo %}Articoli{% endblock %}
+{% block contenuto %}
+{% set modulo_articoli = true %}
+
+<h1>Articoli</h1>
+
+<div class="statistiche" style="margin-bottom:14px">
+  <div class="stat"><div class="valore">{{ risultato.totale }}</div><div class="etichetta">Risultati</div></div>
+  <div class="stat"><div class="valore">{{ risultato.inizio }}-{{ risultato.fine }}</div><div class="etichetta">Mostrati</div></div>
+  <div class="stat"><div class="valore">{{ risultato.pagine }}</div><div class="etichetta">Pagine</div></div>
+  <div class="stat"><div class="valore">{{ campi_custom | length }}</div><div class="etichetta">Campi extra</div></div>
+</div>
+
+<div class="panel">
+  <h2>Filtri</h2>
+  <form id="form-filtri" method="get" action="/articoli"
+        hx-get="/articoli/tabella" hx-target="#tabella" hx-swap="outerHTML"
+        hx-trigger="change from:select, change from:input[type=text], change from:input[type=number], change from:input[type=date] delay:350ms, submit">
+    <input type="hidden" name="flt" id="flt-hidden" value="{{ filtri_json }}">
+    <input type="hidden" name="ord" value="{{ paginazione.ordinamento }}">
+    <input type="hidden" name="dir" value="{{ paginazione.direzione }}">
+    <input type="hidden" name="listino" value="{{ paginazione.listino or '' }}">
+
+    <div class="riga-form">
+      <label for="f__q__val">Ricerca (codice, descrizione, barcode, marca)</label>
+      <input type="text" id="f__q__val" name="f__q__val" value="{{ filtri.get('q','') }}"
+             placeholder="ricerca testuale">
+    </div>
+
+    <details {{ 'open' if filtri else '' }}>
+      <summary style="cursor:pointer;font-weight:600;margin-bottom:8px">Filtri avanzati per colonna</summary>
+      <div class="campi-filtro">
+        {% for col in colonne %}
+          {% if col.chiave != 'q' %}
+            {{ f.filtro_colonna(col, filtri, dropdown) }}
+          {% endif %}
+        {% endfor %}
+      </div>
+    </details>
+
+    <div class="azioni" style="margin-top:12px">
+      <button type="submit" class="primary">Applica filtri</button>
+      <a class="btn" href="/articoli">Azzera</a>
+      {% if filtri %}
+        <button type="button" class="btn" onclick="salvaVista()">Salva vista</button>
+      {% endif %}
+    </div>
+  </form>
+</div>
+
+<div class="panel">
+  <div class="azioni" style="margin-bottom:10px">
+    <h2 style="margin:0;flex:1">Elenco</h2>
+
+    <select id="selezione-viste" onchange="applicaVista(this.value)" style="width:auto">
+      <option value="">Viste salvate...</option>
+      {% for vista in filtri_viste %}
+        <option value="{{ vista.id }}">{{ vista.nome }}{{ ' (condivisa)' if vista.ambito == 'condivisa' else '' }}</option>
+      {% endfor %}
+    </select>
+
+    <a class="btn" href="/articoli/esporta?formato=semplice&tipo=articoli&flt={{ filtri_json|urlencode }}&ord={{ paginazione.ordinamento }}&dir={{ paginazione.direzione }}">Export CSV semplice</a>
+    <a class="btn" href="/articoli/esporta?formato=cosmo&tipo=articoli&flt={{ filtri_json|urlencode }}&ord={{ paginazione.ordinamento }}&dir={{ paginazione.direzione }}">Export COSMOART</a>
+    <a class="btn" href="/articoli/esporta/campi?flt={{ filtri_json|urlencode }}">Export campi personalizzati</a>
+    <a class="btn primary" href="/articoli/nuovo">Nuovo articolo</a>
+  </div>
+
+  <div id="tabella">
+    {% include "articoli/_tabella.html" %}
+  </div>
+</div>
+
+<div id="dialogo-vista" class="panel" style="display:none">
+  <h2>Salva vista</h2>
+  <form method="post" action="/viste/salva" id="form-vista">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="flt" value="{{ filtri_json }}">
+    <input type="hidden" name="ord" value="{{ paginazione.ordinamento }}">
+    <input type="hidden" name="dir" value="{{ paginazione.direzione }}">
+    <div class="griglia">
+      <div class="riga-form">
+        <label for="nome-vista">Nome vista</label>
+        <input type="text" id="nome-vista" name="nome" required>
+      </div>
+      <div class="riga-form">
+        <label for="ambito-vista">Visibilita'</label>
+        <select id="ambito-vista" name="ambito">
+          <option value="personale">Solo per me</option>
+          {% if e_admin %}<option value="condivisa">Condivisa con tutti</option>{% endif %}
+        </select>
+      </div>
+    </div>
+    <div class="azioni">
+      <button type="submit" class="primary">Salva</button>
+      <button type="button" class="btn" onclick="document.getElementById('dialogo-vista').style.display='none'">Annulla</button>
+    </div>
+  </form>
+</div>
+
+{% endblock %}

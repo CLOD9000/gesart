@@ -1,0 +1,75 @@
+{% macro filtro_colonna(col, filtri, dropdown) %}
+{% set chiave = col.chiave %}
+{% set spec = filtri.get(chiave) or {} %}
+{% set op = spec.get('op', '') %}
+<div class="filtro-col">
+  <div class="nome">{{ col.etichetta }}</div>
+
+  {% if col.tipo == 'numero' %}
+    <select name="f__{{ chiave }}__op" class="op-filtro">
+      <option value="">--</option>
+      {% for valore, etichetta in [('min_max','Tra (min/max)'), ('uguale','Uguale a'), ('maggiore','Maggiore di'), ('minore','Minore di'), ('vuoto','Vuoto'), ('non_vuoto','Non vuoto')] %}
+        <option value="{{ valore }}" {{ 'selected' if op == valore }}>{{ etichetta }}</option>
+      {% endfor %}
+    </select>
+    <input type="number" step="any" name="f__{{ chiave }}__min" placeholder="min" value="{{ spec.get('min','') }}">
+    <input type="number" step="any" name="f__{{ chiave }}__max" placeholder="max" value="{{ spec.get('max','') }}">
+
+  {% elif col.tipo == 'data' %}
+    <select name="f__{{ chiave }}__op" class="op-filtro">
+      <option value="">--</option>
+      {% for valore, etichetta in [('da_a','Tra (da/a)'), ('uguale','Il giorno'), ('vuoto','Vuoto'), ('non_vuoto','Non vuoto')] %}
+        <option value="{{ valore }}" {{ 'selected' if op == valore }}>{{ etichetta }}</option>
+      {% endfor %}
+    </select>
+    <input type="date" name="f__{{ chiave }}__da" value="{{ spec.get('da','') }}">
+    <input type="date" name="f__{{ chiave }}__a" value="{{ spec.get('a','') }}">
+
+  {% elif col.tipo == 'flag' %}
+    <select name="f__{{ chiave }}__op" class="op-filtro">
+      <option value="">--</option>
+      {% for valore, etichetta in [('uguale','Uguale a'), ('vuoto','Vuoto'), ('non_vuoto','Non vuoto')] %}
+        <option value="{{ valore }}" {{ 'selected' if op == valore }}>{{ etichetta }}</option>
+      {% endfor %}
+    </select>
+    <select name="f__{{ chiave }}__val">
+      <option value="">--</option>
+      <option value="1" {{ 'selected' if spec.get('val') == '1' }}>Si</option>
+      <option value="0" {{ 'selected' if spec.get('val') == '0' }}>No</option>
+    </select>
+
+  {% elif col.tipo == 'lista' %}
+    <select name="f__{{ chiave }}__op" class="op-filtro">
+      <option value="">--</option>
+      <option value="in" {{ 'selected' if op == 'in' }}>Uno tra</option>
+      <option value="non_in" {{ 'selected' if op == 'non_in' }}>Escluso</option>
+      <option value="vuoto" {{ 'selected' if op == 'vuoto' }}>Vuoto</option>
+      <option value="non_vuoto" {{ 'selected' if op == 'non_vuoto' }}>Non vuoto</option>
+    </select>
+    {% set valori = dropdown.get(chiave) or (col.opzioni | map(attribute='value') | list) %}
+    <select name="f__{{ chiave }}__val" multiple size="4">
+      {% if col.opzioni %}
+        {% for opzione in col.opzioni %}
+          <option value="{{ opzione }}" {{ 'selected' if opzione in (spec.get('val') or []) }}>{{ opzione }}</option>
+        {% endfor %}
+      {% else %}
+        {% for valore in valori %}
+          <option value="{{ valore.value if valore.value is defined else valore }}"
+                  {{ 'selected' if valore.value is defined and valore.value in (spec.get('val') or []) }}>
+            {{ valore.label if valore.label is defined else valore }}
+          </option>
+        {% endfor %}
+      {% endif %}
+    </select>
+
+  {% else %}
+    <select name="f__{{ chiave }}__op" class="op-filtro">
+      <option value="">--</option>
+      {% for valore, etichetta in [('contiene','Contiene'), ('non_contiene','Non contiene'), ('uguale','Uguale a'), ('inizia','Inizia con'), ('termina','Termina con'), ('vuoto','Vuoto'), ('non_vuoto','Non vuoto')] %}
+        <option value="{{ valore }}" {{ 'selected' if op == valore }}>{{ etichetta }}</option>
+      {% endfor %}
+    </select>
+    <input type="text" name="f__{{ chiave }}__val" value="{{ spec.get('val','') }}" placeholder="filtro">
+  {% endif %}
+</div>
+{% endmacro %}

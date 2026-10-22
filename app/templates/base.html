@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block titolo %}Gesart{% endblock %} - Gestionale Articoli</title>
+  <link rel="stylesheet" href="/static/css/app.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#128230;</text></svg>">
+  <script src="/static/js/htmx.min.js"></script>
+  <script src="/static/js/app.js" defer></script>
+</head>
+<body>
+{% if sessione %}
+<header class="top">
+  <span class="brand">Gesart</span>
+  <nav>
+    <a href="/articoli" class="{{ 'active' if modulo_articoli else '' }}">Articoli</a>
+    <a href="/viste" class="{{ 'active' if modulo_viste else '' }}">Viste salvate</a>
+    {% if e_admin %}
+    <a href="/import" class="{{ 'active' if modulo_import else '' }}">Importazione</a>
+    <a href="/admin/campi" class="{{ 'active' if modulo_admin else '' }}">Campi personalizzati</a>
+    <a href="/admin/utenti" class="{{ 'active' if modulo_admin else '' }}">Utenti</a>
+    {% endif %}
+  </nav>
+  <span class="utente">
+    {{ sessione['username'] }} ({{ sessione['ruolo'] }})
+    <form method="post" action="/logout" class="inline-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="link">Esci</button>
+    </form>
+  </span>
+</header>
+{% endif %}
+
+<main>
+  {% block contenuto %}{% endblock %}
+</main>
+</body>
+</html>

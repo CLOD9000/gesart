@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block titolo %}Accesso{% endblock %}
+{% block contenuto %}
+<div class="login-wrap">
+  <div class="login-box">
+    <div class="panel">
+      <h1 style="text-align:center">Gesart</h1>
+      <p style="text-align:center;color:var(--muted);margin-top:-6px">Gestionale Articoli</p>
+      {% if errore %}<div class="msg errore">{{ errore }}</div>{% endif %}
+      <form method="post" action="/login">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <div class="riga-form">
+          <label for="username">Utente</label>
+          <input type="text" id="username" name="username" value="{{ username or '' }}" required autofocus autocomplete="username">
+        </div>
+        <div class="riga-form">
+          <label for="password">Password</label>
+          <input type="password" id="password" name="password" required autocomplete="current-password">
+        </div>
+        <button type="submit" class="primary" style="width:100%">Accedi</button>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

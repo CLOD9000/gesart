@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block titolo %}Utenti{% endblock %}
+{% block contenuto %}
+{% set modulo_admin = true %}
+
+<h1>Utenti</h1>
+
+<div class="panel">
+  <h2>Nuovo utente</h2>
+  <form method="post" action="/admin/utenti">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div class="griglia">
+      <div class="riga-form">
+        <label for="username">Nome utente</label>
+        <input type="text" id="username" name="username" required>
+      </div>
+      <div class="riga-form">
+        <label for="nome">Nome e cognome</label>
+        <input type="text" id="nome" name="nome">
+      </div>
+      <div class="riga-form">
+        <label for="password">Password</label>
+        <input type="password" id="password" name="password" required autocomplete="new-password">
+      </div>
+      <div class="riga-form">
+        <label for="ruolo">Ruolo</label>
+        <select id="ruolo" name="ruolo">
+          <option value="operatore">Operatore (consulta e modifica articoli)</option>
+          <option value="admin">Admin (tutto)</option>
+        </select>
+      </div>
+    </div>
+    <button type="submit" class="primary">Crea utente</button>
+  </form>
+</div>
+
+<div class="panel">
+  <h2>Utenti registrati</h2>
+  <table class="def">
+    <thead><tr><th>Utente</th><th>Nome</th><th>Ruolo</th><th>Stato</th><th>Password</th><th>Azioni</th></tr></thead>
+    <tbody>
+      {% for utente in utenti %}
+        <tr>
+          <td><strong>{{ utente.username }}</strong></td>
+          <td>{{ utente.nome }}</td>
+          <td><span class="badge {{ 'ok' if utente.ruolo == 'admin' else '' }}">{{ utente.ruolo }}</span></td>
+          <td>{{ 'attivo' if utente.attivo else 'disattivato' }}</td>
+          <td>
+            <form method="post" action="/admin/utenti/{{ utente.id }}/password" class="azioni">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <input type="password" name="password" placeholder="nuova password" required
+                     style="width:180px" autocomplete="new-password">
+              <button type="submit">Cambia</button>
+            </form>
+          </td>
+          <td>
+            <form method="post" action="/admin/utenti/{{ utente.id }}/attivo" class="inline-form">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <button type="submit" class="btn">{{ 'Disattiva' if utente.attivo else 'Attiva' }}</button>
+            </form>
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

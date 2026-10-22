@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block titolo %}Importazione completata{% endblock %}
+{% block contenuto %}
+{% set modulo_import = true %}
+
+<h1>Importazione completata</h1>
+
+<div class="msg ok">Importazione di <strong>{{ riepilogo.file }}</strong> completata.</div>
+
+<div class="statistiche" style="margin-bottom:14px">
+  <div class="stat"><div class="valore">{{ riepilogo.righe_totali }}</div><div class="etichetta">Righe lette</div></div>
+  <div class="stat"><div class="valore" style="color:var(--ok)">{{ riepilogo.inseriti }}</div><div class="etichetta">Inseriti</div></div>
+  <div class="stat"><div class="valore" style="color:var(--primary)">{{ riepilogo.aggiornati }}</div><div class="etichetta">Aggiornati</div></div>
+  <div class="stat"><div class="valore" style="color:var(--danger)">{{ riepilogo.scartati }}</div><div class="etichetta">Scartati</div></div>
+</div>
+
+{% if riepilogo.errori %}
+<div class="panel">
+  <h2>Errori ({{ riepilogo.errori|length }})</h2>
+  <div class="tabella-wrap" style="max-height:320px">
+    <table class="dati">
+      <thead><tr><th class="num">Riga</th><th>Codice</th><th>Tipo</th><th>Messaggio</th></tr></thead>
+      <tbody>
+        {% for errore in riepilogo.errori %}
+          <tr>
+            <td class="num">{{ errore.riga }}</td>
+            <td>{{ errore.codice }}</td>
+            <td><span class="badge err">{{ errore.tipo }}</span></td>
+            <td>{{ errore.messaggio }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<div class="panel">
+  <h2>Ultime importazioni</h2>
+  {% include "import/_log.html" %}
+</div>
+
+<div class="azioni">
+  <a class="btn primary" href="/articoli">Vai agli articoli</a>
+  <a class="btn" href="/import">Nuova importazione</a>
+</div>
+{% endblock %}

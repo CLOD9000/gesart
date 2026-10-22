@@ -1,0 +1,28 @@
+<table class="dati">
+  <thead>
+    <tr><th>Data</th><th>File</th><th>Tipo</th><th>Strategia</th><th class="num">Totale</th>
+        <th class="num">Inseriti</th><th class="num">Aggiornati</th><th class="num">Scartati</th><th></th></tr>
+  </thead>
+  <tbody>
+    {% for voce in log %}
+      <tr>
+        <td>{{ voce.timestamp }}</td>
+        <td>{{ voce.file }}<br><span style="color:var(--muted)">{{ voce.formato }}</span></td>
+        <td>{{ voce.tipo }}</td>
+        <td>{{ voce.strategia }}</td>
+        <td class="num">{{ voce.righe_totali }}</td>
+        <td class="num"><span class="badge ok">{{ voce.inseriti }}</span></td>
+        <td class="num"><span class="badge">{{ voce.aggiornati }}</span></td>
+        <td class="num"><span class="badge {{ 'err' if voce.scartati else '' }}">{{ voce.scartati }}</span></td>
+        <td>
+          {% if voce.scartati %}
+            <a class="btn" style="padding:2px 8px" href="/import/log/{{ voce.id }}/errori.csv">Errori CSV</a>
+          {% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+    {% if not log %}
+      <tr><td colspan="9" style="text-align:center;padding:24px;color:var(--muted)">Nessuna importazione registrata.</td></tr>
+    {% endif %}
+  </tbody>
+</table>

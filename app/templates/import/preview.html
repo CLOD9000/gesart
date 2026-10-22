@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+{% block titolo %}Anteprima importazione{% endblock %}
+{% block contenuto %}
+{% set modulo_import = true %}
+
+<h1>Anteprima importazione</h1>
+
+<div class="statistiche" style="margin-bottom:14px">
+  <div class="stat"><div class="valore">{{ anteprima.totale_righe }}</div><div class="etichetta">Righe</div></div>
+  <div class="stat"><div class="valore" style="color:var(--ok)">{{ anteprima.stats.inseriti }}</div><div class="etichetta">Da inserire</div></div>
+  <div class="stat"><div class="valore" style="color:var(--primary)">{{ anteprima.stats.aggiornati }}</div><div class="etichetta">Da aggiornare</div></div>
+  <div class="stat"><div class="valore" style="color:var(--danger)">{{ anteprima.stats.scartati }}</div><div class="etichetta">Scartati</div></div>
+</div>
+
+<div class="panel">
+  <h2>File</h2>
+  <table class="def">
+    <tr><th>Nome</th><td>{{ anteprima.file }}</td></tr>
+    <tr><th>Tipo</th><td>{{ anteprima.tipo }}</td></tr>
+    <tr><th>Formato</th><td>{{ anteprima.formato }}</td></tr>
+    <tr><th>Codifica rilevata</th><td>{{ anteprima.encoding }}</td></tr>
+    <tr><th>Separatore</th><td><code>{{ ';' if anteprima.delimiter == ';' else anteprima.delimiter }}</code></td></tr>
+    <tr><th>Colonne</th><td>{{ anteprima.n_colonne }}</td></tr>
+  </table>
+</div>
+
+<div class="panel">
+  <h2>Mappatura delle colonne</h2>
+  <p style="color:var(--muted);margin-top:-4px">
+    Verifica la corrispondenza fra le colonne del file e i campi del gestionale, poi rianalizza.
+  </p>
+  <form method="post" action="/import/preview/{{ token }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div class="griglia">
+      {% for campo in campi %}
+        <div class="riga-form">
+          <label for="mappa_{{ campo.chiave }}">
+            {{ campo.etichetta }}{{ ' *' if campo.obbligatorio else '' }}
+          </label>
+          <select id="mappa_{{ campo.chiave }}" name="mappa_{{ campo.chiave }}">
+            <option value="">-- non mappato --</option>
+            {% for colonna in anteprima.colonne %}
+              <option value="{{ colonna.indice }}"
+                      {{ 'selected' if anteprima.mappa.get(campo.chiave) == colonna.indice }}>
+                Colonna {{ colonna.indice }}: {{ colonna.campione|truncate(40) }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+      {% endfor %}
+      <div class="riga-form">
+        <label for="strategia">Strategia di aggiornamento</label>
+        <select id="strategia" name="strategia">
+          {% for s in strategie %}
+            <option value="{{ s }}" {{ 'selected' if s == anteprima.strategia }}>
+              {{ {'upsert':'Upsert (inserisci o aggiorna)','solo_inserimento':'Solo inserimento','solo_campi_vuoti':'Aggiorna solo i campi vuoti'}[s] }}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+    <button type="submit" class="primary">Rianalizza</button>
+  </form>
+</div>
+
+<div class="panel">
+  <h2>Colonne rilevate</h2>
+  <div class="tabella-wrap" style="max-height:260px">
+    <table class="dati">
+      <thead><tr><th>#</th><th>Campo associato</th><th>Campione</th><th class="num">Non vuoti (su 20)</th></tr></thead>
+      <tbody>
+        {% for colonna in anteprima.colonne %}
+          <tr>
+            <td>{{ colonna.indice }}</td>
+            <td>{{ colonna.etichetta }}</td>
+            <td><code>{{ colonna.campione }}</code></td>
+            <td class="num">{{ colonna.non_vuoti }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="panel">
+  <h2>Anteprima dei primi {{ anteprima.record|length }} record</h2>
+  <div class="tabella-wrap" style="max-height:400px">
+    <table class="dati">
+      <thead>
+        <tr>
+          <th>Riga</th>
+          {% for campo in campi %}<th>{{ campo.etichetta }}</th>{% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for record in anteprima.record %}
+          <tr>
+            <td>{{ record['_riga'] }}</td>
+            {% for campo in campi %}
+              <td>{{ record.get(campo.chiave, '') }}</td>
+            {% endfor %}
+          </tr>
+        {% endfor %}
+        {% if not anteprima.record %}
+          <tr><td colspan="{{ campi|length + 1 }}" style="text-align:center;padding:24px;color:var(--muted)">
+            Nessun record valido nel file.
+          </td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% if anteprima.errori %}
+<div class="panel">
+  <h2>Errori rilevati ({{ anteprima.errori|length }})</h2>
+  <div class="tabella-wrap" style="max-height:320px">
+    <table class="dati">
+      <thead><tr><th class="num">Riga</th><th>Codice</th><th>Tipo</th><th>Messaggio</th><th>Valore</th></tr></thead>
+      <tbody>
+        {% for errore in anteprima.errori %}
+          <tr>
+            <td class="num">{{ errore.riga }}</td>
+            <td>{{ errore.codice }}</td>
+            <td><span class="badge err">{{ errore.tipo }}</span></td>
+            <td>{{ errore.messaggio }}</td>
+            <td>{{ errore.valore }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<div class="panel">
+  <h2>Conferma importazione</h2>
+  <p>
+    Verranno inseriti <strong>{{ anteprima.stats.inseriti }}</strong> articoli/record, aggiornati
+    <strong>{{ anteprima.stats.aggiornati }}</strong> e scartati <strong>{{ anteprima.stats.scartati }}</strong>.
+  </p>
+  <div class="azioni">
+    <form method="post" action="/import/commit/{{ token }}" style="display:inline">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="strategia" value="{{ anteprima.strategia }}">
+      <button type="submit" class="primary">Importa ora</button>
+    </form>
+    <a class="btn" href="/import">Annulla</a>
+  </div>
+</div>
+{% endblock %}

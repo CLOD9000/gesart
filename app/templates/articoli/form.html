@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+{% block titolo %}{{ titolo }}{% endblock %}
+{% block contenuto %}
+{% set modulo_articoli = true %}
+
+<h1>{{ titolo }}</h1>
+
+{% if errore %}<div class="msg errore">{{ errore }}</div>{% endif %}
+
+<form method="post" action="/articoli/salva">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  {% if articolo.id %}<input type="hidden" name="id" value="{{ articolo.id }}">{% endif %}
+
+  <div class="panel">
+    <h2>Anagrafica</h2>
+    <div class="griglia">
+      <div class="riga-form">
+        <label for="codice">Codice articolo *</label>
+        <input type="text" id="codice" name="codice" value="{{ articolo.codice or '' }}" required>
+      </div>
+      <div class="riga-form">
+        <label for="unita_misura">Unita' di misura</label>
+        <input type="text" id="unita_misura" name="unita_misura" value="{{ articolo.unita_misura or '' }}">
+      </div>
+      <div class="riga-form">
+        <label for="barcode">Barcode</label>
+        <input type="text" id="barcode" name="barcode" value="{{ articolo.barcode or '' }}">
+      </div>
+      <div class="riga-form">
+        <label for="azienda">Azienda</label>
+        <input type="text" id="azienda" name="azienda" value="{{ articolo.azienda or '' }}">
+      </div>
+      <div class="riga-form">
+        <label for="codice_marca">Codice marca</label>
+        <input type="text" id="codice_marca" name="codice_marca" list="lista-marche"
+               value="{{ articolo.codice_marca or '' }}">
+        <datalist id="lista-marche">
+          {% for marca in marche %}<option value="{{ marca.codice }}">{{ marca.descrizione }}</option>{% endfor %}
+        </datalist>
+      </div>
+    </div>
+
+    <div class="riga-form">
+      <label for="descrizione">Descrizione</label>
+      <textarea id="descrizione" name="descrizione" rows="3">{{ articolo.descrizione or '' }}</textarea>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Listino e prezzo</h2>
+    <div class="griglia">
+      <div class="riga-form">
+        <label for="nome_listino">Listino</label>
+        <input type="text" id="nome_listino" name="nome_listino" list="lista-listini"
+               value="{{ articolo.nome_listino or 'DEFAULT' }}">
+        <datalist id="lista-listini">
+          {% for nome in listini %}<option value="{{ nome }}"></option>{% endfor %}
+        </datalist>
+      </div>
+      <div class="riga-form">
+        <label for="prezzo">Prezzo</label>
+        <input type="number" step="0.0001" id="prezzo" name="prezzo" value="{{ articolo.prezzo if articolo.prezzo is not none else '' }}">
+      </div>
+      <div class="riga-form">
+        <label for="data_validita">Data validita'</label>
+        <input type="date" id="data_validita" name="data_validita" value="{{ articolo.data_validita or '' }}">
+      </div>
+    </div>
+  </div>
+
+  {% if campi_custom %}
+  <div class="panel">
+    <h2>Campi personalizzati</h2>
+    <div class="griglia">
+      {% for campo in campi_custom %}
+        {% set valore = valori_custom.get(campo.chiave, '') %}
+        <div class="riga-form">
+          <label for="cp_{{ campo.chiave }}">
+            {{ campo.etichetta }}{{ ' *' if campo.obbligatorio else '' }}
+          </label>
+          {% if campo.tipo == 'numero' %}
+            <input type="number" step="any" id="cp_{{ campo.chiave }}" name="cp_{{ campo.chiave }}" value="{{ valore }}">
+          {% elif campo.tipo == 'data' %}
+            <input type="date" id="cp_{{ campo.chiave }}" name="cp_{{ campo.chiave }}" value="{{ valore }}">
+          {% elif campo.tipo == 'flag' %}
+            <select id="cp_{{ campo.chiave }}" name="cp_{{ campo.chiave }}">
+              <option value="">--</option>
+              <option value="1" {{ 'selected' if valore in (1, '1', 'true') }}>Si</option>
+              <option value="0" {{ 'selected' if valore in (0, '0', 'false') }}>No</option>
+            </select>
+          {% elif campo.tipo == 'lista' %}
+            <select id="cp_{{ campo.chiave }}" name="cp_{{ campo.chiave }}">
+              <option value="">--</option>
+              {% for opzione in campo.opzioni %}
+                <option value="{{ opzione }}" {{ 'selected' if valore == opzione }}>{{ opzione }}</option>
+              {% endfor %}
+            </select>
+          {% else %}
+            <input type="text" id="cp_{{ campo.chiave }}" name="cp_{{ campo.chiave }}" value="{{ valore }}">
+          {% endif %}
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  {% if articolo.campi_extra %}
+  <div class="panel">
+    <h2>Campi extra (colonne non standard del file originale)</h2>
+    <p style="color:var(--muted);margin-top:-4px">
+      Conservati dall'importazione per non perdere dati. La chiave e' l'indice della colonna nel file sorgente.
+    </p>
+    <div class="griglia">
+      {% for chiave, valore in (articolo.campi_extra or {}).items() %}
+        <div class="riga-form">
+          <label for="ce_{{ chiave }}">Colonna {{ chiave }}</label>
+          <input type="text" id="ce_{{ chiave }}" name="ce_{{ chiave }}" value="{{ valore }}">
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="azioni">
+    <button type="submit" class="primary">Salva</button>
+    <a class="btn" href="/articoli">Annulla</a>
+    {% if articolo.id %}
+      <button type="submit" class="danger" form="form-elimina"
+              onclick="return confirm('Eliminare definitivamente l\\'articolo {{ articolo.codice }}?')">Elimina</button>
+    {% endif %}
+  </div>
+</form>
+
+{% if articolo.id %}
+<form id="form-elimina" method="post" action="/articoli/{{ articolo.id }}/elimina" style="display:none">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+</form>
+{% endif %}
+{% endblock %}

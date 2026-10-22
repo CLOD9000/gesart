@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block titolo %}Viste salvate{% endblock %}
+{% block contenuto %}
+{% set modulo_viste = true %}
+
+<h1>Viste salvate</h1>
+
+<div class="panel">
+  {% if viste %}
+    {% for vista in viste %}
+      <div class="vista-box">
+        <div>
+          <a href="/articoli?flt={{ vista.filtri|urlencode }}"><strong>{{ vista.nome }}</strong></a>
+          {% if vista.ambito == 'condivisa' %}<span class="badge">condivisa</span>{% endif %}
+          <div class="filtri-str"><code>{{ vista.filtri|truncate(140) }}</code></div>
+        </div>
+        <form method="post" action="/viste/{{ vista.id }}/elimina" class="inline-form"
+              onsubmit="return confirm('Eliminare la vista {{ vista.nome }}?')">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button type="submit" class="danger">Elimina</button>
+        </form>
+      </div>
+    {% endfor %}
+  {% else %}
+    <p style="color:var(--muted)">Nessuna vista salvata. Per creare una vista, applica i filtri
+      nella pagina <a href="/articoli">Articoli</a> e premi "Salva vista".</p>
+  {% endif %}
+</div>
+{% endblock %}
