@@ -53,30 +53,6 @@ services:
     networks:
       - gesart-net
 
-  # Suite di test (profilo "test"): gira nella rete interna e usa il DB `db`.
-  #   docker compose --env-file stack.env --profile test run --rm test
-  test:
-    build:
-      context: .
-      target: test
-    image: gesart:test
-    profiles: ["test"]
-    depends_on:
-      db:
-        condition: service_healthy
-    env_file:
-      - stack.env
-    environment:
-      GESART_DB_HOST: "db"
-      GESART_DB_PORT: "5432"
-      GESART_DB_READONLY_ROLE: ""
-      GESART_DATA_DIR: "/tmp/gesart-data"
-      GESART_IMPORTS_DIR: "/imports"
-    volumes:
-      - /home/dockeradmin/stacks/gesart/imports:/imports:ro
-    networks:
-      - gesart-net
-
 networks:
   gesart-net:
     driver: bridge
