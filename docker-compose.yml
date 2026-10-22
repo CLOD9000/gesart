@@ -15,9 +15,9 @@ services:
       - "${GESART_PORT:-9080}:9080"
     volumes:
       # Database SQLite e file di staging: NON perderli.
-      - gesart-data:/data
+      - /home/dockeradmin/stacks/gesart:/data
       # Cartella con i CSV/XLSX da importare (opzionale).
-      - ./imports:/imports:ro
+      - /home/dockeradmin/stacks/gesart/imports:/imports:ro
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:9080/healthz"]
       interval: 30s
@@ -25,5 +25,3 @@ services:
       retries: 3
       start_period: 10s
 
-volumes:
-  gesart-data:
