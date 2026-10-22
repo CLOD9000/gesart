@@ -8,7 +8,7 @@ services:
     environment:
       PGDATA: "/var/lib/postgresql/data/pgdata"
     volumes:
-      - gesart-db:/var/lib/postgresql/data
+      - /home/dockeradmin/stacks/gesart/db:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", 'pg_isready -h 127.0.0.1 -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
       interval: 10s
@@ -40,10 +40,10 @@ services:
     ports:
       - "${GESART_PORT:-9080}:9080"
     volumes:
-      # Solo staging degli import: il database vive nel volume gesart-db.
-      - gesart-data:/data
+      # File di staging: NON perderli.
+      - /home/dockeradmin/stacks/gesart:/data
       # Cartella con i CSV/XLSX da importare (opzionale).
-      - ./imports:/imports:ro
+      - /home/dockeradmin/stacks/gesart/imports:/imports:ro
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:9080/healthz"]
       interval: 30s
@@ -73,14 +73,11 @@ services:
       GESART_DATA_DIR: "/tmp/gesart-data"
       GESART_IMPORTS_DIR: "/imports"
     volumes:
-      - ./imports:/imports:ro
+      - /home/dockeradmin/stacks/gesart/imports:/imports:ro
     networks:
       - gesart-net
-
-volumes:
-  gesart-data:
-  gesart-db:
 
 networks:
   gesart-net:
     driver: bridge
+
